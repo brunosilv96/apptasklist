@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:tasklist/models/task.dart';
+import 'package:tasklist/repositories/task_repository.dart';
 import 'package:tasklist/widgets/tasklist_item.dart';
 
 class TasklistPage extends StatefulWidget {
@@ -12,9 +13,11 @@ class TasklistPage extends StatefulWidget {
 class _TasklistPageState extends State<TasklistPage> {
   List<Task> tasks = [];
 
-  final TextEditingController todoController = TextEditingController();
+  final TextEditingController taskController = TextEditingController();
+  final TaskRepository taskRepository = TaskRepository();
   Task? deletedTask;
   int? deletedTaskPos;
+  String? errorText;
 
   void onDelete(Task task) {
     deletedTask = task;
@@ -23,6 +26,8 @@ class _TasklistPageState extends State<TasklistPage> {
     setState(() {
       tasks.remove(task);
     });
+
+    taskRepository.saveTaskList(tasks);
 
     // Limpa todas as notificações exibidas no momento
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -60,7 +65,8 @@ class _TasklistPageState extends State<TasklistPage> {
       builder: (context) => AlertDialog(
         title: const Text('Limpar tudo?'),
         content: const Text(
-            'Você está prestes a apagar todas as tarefas, tem certeza?'),
+          'Você está prestes a apagar todas as tarefas, tem certeza?',
+        ),
         actions: [
           TextButton(
             onPressed: () {
@@ -103,6 +109,8 @@ class _TasklistPageState extends State<TasklistPage> {
       tasks.clear();
     });
 
+    taskRepository.saveTaskList(tasks);
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
@@ -115,6 +123,17 @@ class _TasklistPageState extends State<TasklistPage> {
         backgroundColor: Colors.green,
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    taskRepository.getTaskList().then(
+          (taskListRepository) => setState(() {
+            tasks = taskListRepository;
+          }),
+        );
   }
 
   @override
@@ -134,11 +153,21 @@ class _TasklistPageState extends State<TasklistPage> {
                   children: [
                     Expanded(
                       child: TextField(
-                        controller: todoController,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
+                        controller: taskController,
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
                           labelText: 'Adicionar uma tarefa',
                           hintText: 'Ex. Pescar',
+                          errorText: errorText,
+                          focusedBorder: const OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Color(0xff00d7f3),
+                            ),
+                          ),
+                          labelStyle: const TextStyle(
+                            color: Color(0xff00d7f3),
+                            fontSize: 20,
+                          ),
                         ),
                       ),
                     ),
@@ -147,7 +176,15 @@ class _TasklistPageState extends State<TasklistPage> {
                     ),
                     ElevatedButton(
                       onPressed: () {
-                        String text = todoController.text;
+                        String text = taskController.text;
+
+                        if (text.isEmpty) {
+                          setState(() {
+                            errorText = 'Informe o nome da tarefa';
+                          });
+                          return;
+                        }
+
                         Task atualTask = Task(
                           title: text,
                           dateTime: DateTime.now(),
@@ -155,9 +192,11 @@ class _TasklistPageState extends State<TasklistPage> {
 
                         setState(() {
                           tasks.add(atualTask);
+                          errorText = null;
                         });
 
-                        todoController.clear();
+                        taskController.clear();
+                        taskRepository.saveTaskList(tasks);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xff00d7f3),
